@@ -1,0 +1,12 @@
+{
+  "name": "dc-user-checker-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DCInside fixed-member activity checker",
+  "dependencies": {
+    "@gurumnyang/dcinside.js": "latest"
+  },
+  "devDependencies": {
+    "vercel": "latest"
+  }
+}

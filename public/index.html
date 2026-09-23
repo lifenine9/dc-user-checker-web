@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>통검</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+  <main class="app">
+
+    <header class="header">
+      <div>
+        <h1>통검</h1>
+        <p>식별코드로 특정 갤러리 활동을 확인합니다.</p>
+      </div>
+    </header>
+
+
+    <!-- 검사 설정 -->
+    <section class="card">
+
+      <label class="label" for="galleryInput">갤러리</label>
+
+      <div class="field-wrap">
+        <input
+          id="galleryInput"
+          type="text"
+          autocomplete="off"
+          placeholder="갤러리 이름을 검색하세요"
+        >
+
+        <div
+          id="gallerySuggestions"
+          class="suggestions hidden"
+        ></div>
+      </div>
+
+      <div
+        id="selectedGallery"
+        class="selected-gallery hidden"
+      ></div>
+
+
+      <label class="label" for="userIdInput">식별코드</label>
+
+      <input
+        id="userIdInput"
+        type="text"
+        autocomplete="off"
+        placeholder="고정닉의 DC인사이드 ID"
+      >
+
+
+      <label class="label" for="rangeSelect">검사 범위</label>
+
+      <select id="rangeSelect">
+        <option value="1000">최근 1,000개</option>
+        <option value="5000">최근 5,000개</option>
+        <option value="10000" selected>최근 10,000개</option>
+        <option value="20000">최근 20,000개</option>
+        <option value="50000">최근 50,000개</option>
+      </select>
+
+
+      <!-- 세 버튼을 세로로 배치 -->
+      <div class="check-actions">
+
+        <button
+          id="quickButton"
+          class="quick-button"
+          type="button"
+        >
+          간편검색
+        </button>
+
+        <button
+          id="checkButton"
+          class="primary-button"
+          type="button"
+        >
+          게시글 검사
+        </button>
+
+        <button
+          id="commentButton"
+          class="secondary-button"
+          type="button"
+        >
+          댓글 검사
+        </button>
+
+      </div>
+
+
+      <!-- 간편검색 진행 -->
+      <div
+        id="quickProgress"
+        class="progress hidden"
+      >
+        <div class="progress-top">
+
+          <div class="spinner"></div>
+
+          <div class="progress-copy">
+            <strong>간편검색 중입니다.</strong>
+            <span id="quickProgressText">
+              게시글 활동부터 확인하고 있습니다.
+            </span>
+          </div>
+
+          <strong
+            id="quickElapsed"
+            class="elapsed"
+          >
+            00분 00초
+          </strong>
+
+        </div>
+      </div>
+
+
+      <!-- 게시글 진행 -->
+      <div
+        id="postProgress"
+        class="progress hidden"
+      >
+        <div class="progress-top">
+
+          <div class="spinner"></div>
+
+          <div class="progress-copy">
+            <strong>게시글을 검사하고 있습니다.</strong>
+
+            <span id="postProgressText">
+              검사를 준비하고 있습니다.
+            </span>
+          </div>
+
+          <strong
+            id="postProgressPercent"
+            class="progress-percent"
+          >
+            0%
+          </strong>
+
+          <strong
+            id="postElapsed"
+            class="elapsed"
+          >
+            00분 00초
+          </strong>
+
+        </div>
+
+        <div
+          class="progress-track"
+          aria-hidden="true"
+        >
+          <div
+            id="postProgressBar"
+            class="progress-bar"
+          ></div>
+        </div>
+      </div>
+
+
+      <!-- 댓글 진행 -->
+      <div
+        id="commentProgress"
+        class="progress hidden"
+      >
+        <div class="progress-top">
+
+          <div class="spinner"></div>
+
+          <div class="progress-copy">
+            <strong>댓글을 검사하고 있습니다.</strong>
+
+            <span id="commentProgressText">
+              검사를 준비하고 있습니다.
+            </span>
+          </div>
+
+          <strong
+            id="commentProgressPercent"
+            class="progress-percent"
+          >
+            0%
+          </strong>
+
+          <strong
+            id="commentElapsed"
+            class="elapsed"
+          >
+            00분 00초
+          </strong>
+
+        </div>
+
+        <div
+          class="progress-track"
+          aria-hidden="true"
+        >
+          <div
+            id="commentProgressBar"
+            class="progress-bar"
+          ></div>
+        </div>
+      </div>
+
+
+      <div
+        id="error"
+        class="error hidden"
+      ></div>
+
+    </section>
+
+
+    <!-- 간편검색 결과 -->
+    <section
+      id="quickResult"
+      class="card result hidden"
+    >
+
+      <div class="result-target">
+        <div>갤러리</div>
+        <strong id="quickResultGallery"></strong>
+
+        <div>식별코드</div>
+        <strong id="quickResultUserId"></strong>
+      </div>
+
+      <div class="result-head">
+
+        <div>
+          <div class="eyebrow">간편검색 결과</div>
+          <h2 id="quickResultTitle">검색 결과</h2>
+        </div>
+
+        <div>
+          <div
+            id="quickElapsedResult"
+            class="checked-count"
+          ></div>
+        </div>
+
+      </div>
+
+      <div
+        id="quickResultMessage"
+        class="quick-result-message"
+      ></div>
+
+    </section>
+
+
+    <!-- 게시글 결과 -->
+    <section
+      id="result"
+      class="card result hidden"
+    >
+
+      <div class="result-target">
+        <div>갤러리</div>
+        <strong id="postResultGallery"></strong>
+
+        <div>식별코드</div>
+        <strong id="postResultUserId"></strong>
+      </div>
+
+
+      <div class="result-head">
+
+        <div>
+          <div class="eyebrow">게시글 검사 결과</div>
+
+          <h2>
+            <span id="foundCount">0</span>개의 게시글을 찾았습니다.
+          </h2>
+        </div>
+
+        <div>
+          <div
+            id="checkedCount"
+            class="checked-count"
+          ></div>
+
+          <div
+            id="postElapsedResult"
+            class="checked-count"
+          ></div>
+        </div>
+
+      </div>
+
+
+      <div
+        id="postList"
+        class="post-list"
+      ></div>
+
+    </section>
+
+
+    <!-- 댓글 결과 -->
+    <section
+      id="commentResult"
+      class="card result hidden"
+    >
+
+      <div class="result-target">
+        <div>갤러리</div>
+        <strong id="commentResultGallery"></strong>
+
+        <div>식별코드</div>
+        <strong id="commentResultUserId"></strong>
+      </div>
+
+
+      <div class="result-head">
+
+        <div>
+          <div class="eyebrow">댓글 검사 결과</div>
+
+          <h2>
+            <span id="commentFoundCount">0</span>개의 게시글에서
+            댓글 활동을 찾았습니다.
+          </h2>
+        </div>
+
+        <div>
+          <div
+            id="commentCheckedCount"
+            class="checked-count"
+          ></div>
+
+          <div
+            id="commentElapsedResult"
+            class="checked-count"
+          ></div>
+        </div>
+
+      </div>
+
+
+      <div
+        id="commentList"
+        class="post-list"
+      ></div>
+
+    </section>
+
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
