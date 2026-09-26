@@ -8,5 +8,8 @@
   },
   "devDependencies": {
     "vercel": "latest"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }
