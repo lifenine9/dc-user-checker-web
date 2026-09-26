@@ -23,13 +23,19 @@
 
       <label class="label" for="galleryInput">갤러리</label>
 
-      <div class="field-wrap">
+      <div class="field-wrap clearable-field">
         <input
           id="galleryInput"
           type="text"
           autocomplete="off"
           placeholder="갤러리 이름을 검색하세요"
         >
+        <button
+          id="galleryClearButton"
+          class="input-clear hidden"
+          type="button"
+          aria-label="갤러리 입력 지우기"
+        >×</button>
 
         <div
           id="gallerySuggestions"
@@ -45,12 +51,20 @@
 
       <label class="label" for="userIdInput">식별코드</label>
 
-      <input
-        id="userIdInput"
-        type="text"
-        autocomplete="off"
-        placeholder="고정닉의 DC인사이드 ID"
-      >
+      <div class="clearable-field user-id-field">
+        <input
+          id="userIdInput"
+          type="text"
+          autocomplete="off"
+          placeholder="고정닉의 DC인사이드 ID"
+        >
+        <button
+          id="userIdClearButton"
+          class="input-clear hidden"
+          type="button"
+          aria-label="식별코드 입력 지우기"
+        >×</button>
+      </div>
 
 
       <label class="label" for="rangeSelect">검사 범위</label>

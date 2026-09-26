@@ -1,9 +1,11 @@
 const $ = (selector) => document.querySelector(selector);
 
 const galleryInput = $("#galleryInput");
+const galleryClearButton = $("#galleryClearButton");
 const gallerySuggestions = $("#gallerySuggestions");
 const selectedGallery = $("#selectedGallery");
 const userIdInput = $("#userIdInput");
+const userIdClearButton = $("#userIdClearButton");
 const rangeSelect = $("#rangeSelect");
 const checkButton = $("#checkButton");
 const postProgress = $("#postProgress");
@@ -368,6 +370,39 @@ function renderSuggestions(results) {
 }
 
 
+function updateClearButtons() {
+  galleryClearButton.classList.toggle("hidden", !galleryInput.value);
+  userIdClearButton.classList.toggle("hidden", !userIdInput.value);
+}
+
+function clearGalleryInput() {
+  galleryInput.value = "";
+  selectedGalleryData = null;
+  selectedGallery.classList.add("hidden");
+  selectedGallery.textContent = "";
+  gallerySuggestions.classList.add("hidden");
+  gallerySuggestions.innerHTML = "";
+  searchSeq++;
+
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
+
+  if (searchController) {
+    searchController.abort();
+    searchController = null;
+  }
+
+  updateClearButtons();
+}
+
+function clearUserIdInput() {
+  userIdInput.value = "";
+  updateClearButtons();
+  restoreSavedResults();
+}
+
 function selectGallery(item) {
   selectedGalleryData = item;
 
@@ -380,10 +415,15 @@ function selectGallery(item) {
 
   gallerySuggestions.classList.add("hidden");
   gallerySuggestions.innerHTML = "";
+  updateClearButtons();
+  setTimeout(restoreSavedResults, 0);
 }
 
+galleryClearButton.addEventListener("click", clearGalleryInput);
+userIdClearButton.addEventListener("click", clearUserIdInput);
 
 galleryInput.addEventListener("input", () => {
+  updateClearButtons();
   const keyword = galleryInput.value.trim();
 
   selectedGalleryData = null;
@@ -437,6 +477,12 @@ galleryInput.addEventListener("input", () => {
   }, 400);
 });
 
+
+userIdInput.addEventListener("input", () => {
+  updateClearButtons();
+});
+
+updateClearButtons();
 
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".field-wrap")) {
@@ -736,12 +782,19 @@ function renderCommentSession(session, interrupted = false) {
 }
 
 function renderQuickBlock(entry) {
-  const box = makeBlockBox(entry.type, entry.data);
+  const source = entry.data || {};
+  const data = {
+    ...source,
+    foundCount: source.found ? 1 : 0,
+    postNumbers: source.found && source.postNo ? [source.postNo] : []
+  };
+
+  const box = makeBlockBox(entry.type, data);
   box.classList.add("quick-block");
   return box;
 }
 
-function renderQuickSession(session, interrupted = false) {
+function renderQuickSession(session, interrupted = false, running = false) {
   quickResultGallery.textContent = getSelectedGalleryName();
   quickResultUserId.textContent = session.targetUserId;
   quickResultMessage.innerHTML = "";
@@ -754,8 +807,18 @@ function renderQuickSession(session, interrupted = false) {
   oldResume?.remove();
   const oldStatus = document.getElementById("quickResumeStatus");
   oldStatus?.remove();
+  const oldRunning = document.getElementById("quickRunningStatus");
+  oldRunning?.remove();
 
-  if (session.found) {
+  if (running) {
+    quickResultTitle.textContent = "검사 중입니다.";
+
+    const status = document.createElement("div");
+    status.id = "quickRunningStatus";
+    status.className = "quick-running-message";
+    status.textContent = quickProgressText.textContent || "검사를 진행하고 있습니다.";
+    quickResultMessage.appendChild(status);
+  } else if (session.found) {
     quickResultTitle.textContent = session.found.kind === "post" ? "게시글 활동을 찾았습니다." : "댓글 활동을 찾았습니다.";
     const info = document.createElement("div");
     info.className = "quick-found-message";
@@ -1012,7 +1075,7 @@ async function runQuickInspection(resume = false) {
   quickProgress.classList.remove("hidden");
   quickResult.classList.remove("hidden");
   startElapsedTimer("quick");
-  renderQuickSession(session);
+  renderQuickSession(session, false, true);
 
   try {
     const postTotal = Math.ceil(range / POST_BLOCK_SIZE);
@@ -1038,6 +1101,7 @@ async function runQuickInspection(resume = false) {
       const blockCount = Math.min(blockSize, range - blockStart);
 
       quickProgressText.textContent = `${type === "post" ? "게시글" : "댓글"} ${blockIndex + 1}블록 검사 중...`;
+      renderQuickSession(session, false, true);
 
       const response = await fetch("/api/quick-check", {
         method: "POST",
@@ -1077,7 +1141,7 @@ async function runQuickInspection(resume = false) {
       }
 
       saveStoredSession("quick", session);
-      renderQuickSession(session);
+      renderQuickSession(session, false, true);
     }
   } catch (error) {
     session.elapsed = stopElapsedTimer("quick");
@@ -1117,12 +1181,6 @@ function restoreSavedResults() {
   const quickSession = getStoredSession("quick");
   if (sessionMatches(quickSession, selectedGalleryData, userId, range)) renderQuickSession(quickSession, !quickSession.completed);
 }
-
-const originalSelectGallery = selectGallery;
-selectGallery = function(item) {
-  originalSelectGallery(item);
-  setTimeout(restoreSavedResults, 0);
-};
 
 userIdInput.addEventListener("change", restoreSavedResults);
 rangeSelect.addEventListener("change", restoreSavedResults);
