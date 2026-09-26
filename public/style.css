@@ -564,3 +564,90 @@ input:focus, select:focus {
   font-weight: 700;
   text-decoration: underline;
 }
+/* 블록 검사 결과 */
+.block-results,
+.quick-block-results {
+  display: grid;
+  gap: 12px;
+}
+
+.block-result {
+  padding: 14px;
+  border: 1px solid #e4e7eb;
+  border-radius: 14px;
+  background: #fafbfc;
+}
+
+.block-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.block-result-head strong {
+  font-size: 14px;
+}
+
+.block-result-head span,
+.block-result-meta {
+  color: #7c838c;
+  font-size: 12px;
+}
+
+.block-result-meta {
+  margin-top: 5px;
+}
+
+.block-post-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.block-post-list .post-link {
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.resume-status {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff7e6;
+  color: #7a5b20;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.resume-button {
+  width: 100%;
+  height: 46px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 11px;
+  background: #30343a;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.resume-button:hover {
+  opacity: .92;
+}
+
+.quick-found-message {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f7f8fa;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.quick-found-message a {
+  color: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+}

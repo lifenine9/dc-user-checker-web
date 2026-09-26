@@ -445,886 +445,684 @@ document.addEventListener("click", (event) => {
 });
 
 
+
+const POST_BLOCK_SIZE = 5000;
+const COMMENT_BLOCK_SIZE = 1000;
+const SESSION_STORAGE_KEY = "dc-user-checker-block-sessions-v1";
+
 function formatElapsed(ms) {
-  const totalSeconds =
-    Math.max(0, Math.floor(ms / 1000));
-
-  const minutes =
-    Math.floor(totalSeconds / 60);
-
-  const seconds =
-    totalSeconds % 60;
-
-  return (
-    `${String(minutes).padStart(2, "0")}분 ` +
-    `${String(seconds).padStart(2, "0")}초`
-  );
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}분 ${String(seconds).padStart(2, "0")}초`;
 }
 
-
 function startElapsedTimer(type) {
+  stopElapsedTimer(type);
   const startedAt = Date.now();
-
   const tick = () => {
-    const value =
-      formatElapsed(Date.now() - startedAt);
-
-    if (type === "post") {
-      postElapsed.textContent = value;
-    }
-
-    if (type === "comment") {
-      commentElapsed.textContent = value;
-    }
-
-    if (type === "quick") {
-      quickElapsed.textContent = value;
-    }
+    const value = formatElapsed(Date.now() - startedAt);
+    if (type === "post") postElapsed.textContent = value;
+    if (type === "comment") commentElapsed.textContent = value;
+    if (type === "quick") quickElapsed.textContent = value;
   };
-
   tick();
-
   const timer = setInterval(tick, 250);
-
-  if (type === "post") {
-    postTimer = {
-      timer,
-      startedAt
-    };
-  }
-
-  if (type === "comment") {
-    commentTimer = {
-      timer,
-      startedAt
-    };
-  }
-
-  if (type === "quick") {
-    quickTimer = {
-      timer,
-      startedAt
-    };
-  }
-
+  const ref = { timer, startedAt };
+  if (type === "post") postTimer = ref;
+  if (type === "comment") commentTimer = ref;
+  if (type === "quick") quickTimer = ref;
   return startedAt;
 }
 
-
 function stopElapsedTimer(type) {
-  const ref =
-    type === "post"
-      ? postTimer
-      : type === "comment"
-        ? commentTimer
-        : quickTimer;
-
+  const ref = type === "post" ? postTimer : type === "comment" ? commentTimer : quickTimer;
   if (!ref) return 0;
-
   clearInterval(ref.timer);
-
-  const elapsed =
-    Date.now() - ref.startedAt;
-
-  const value =
-    formatElapsed(elapsed);
-
+  const elapsed = Date.now() - ref.startedAt;
+  const value = formatElapsed(elapsed);
   if (type === "post") {
     postElapsed.textContent = value;
-  }
-
-  if (type === "comment") {
-    commentElapsed.textContent = value;
-  }
-
-  if (type === "quick") {
-    quickElapsed.textContent = value;
-  }
-
-  if (type === "post") {
     postTimer = null;
   }
-
   if (type === "comment") {
+    commentElapsed.textContent = value;
     commentTimer = null;
   }
-
   if (type === "quick") {
+    quickElapsed.textContent = value;
     quickTimer = null;
   }
-
   return elapsed;
 }
 
-
-function updateProgressUI(
-  percent,
-  checked,
-  total,
-  type
-) {
-  const value =
-    Math.max(
-      0,
-      Math.min(
-        100,
-        Number(percent) || 0
-      )
-    );
-
-  const percentEl =
-    type === "comment"
-      ? commentProgressPercent
-      : postProgressPercent;
-
-  const barEl =
-    type === "comment"
-      ? commentProgressBar
-      : postProgressBar;
-
-  const textEl =
-    type === "comment"
-      ? commentProgressText
-      : postProgressText;
-
+function updateProgressUI(percent, checked, total, type) {
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  const percentEl = type === "comment" ? commentProgressPercent : postProgressPercent;
+  const barEl = type === "comment" ? commentProgressBar : postProgressBar;
+  const textEl = type === "comment" ? commentProgressText : postProgressText;
   percentEl.textContent = `${value}%`;
-
   barEl.style.width = `${value}%`;
-
-  if (
-    Number.isFinite(checked) &&
-    Number.isFinite(total) &&
-    total > 0
-  ) {
-    textEl.textContent =
-      `${Number(checked).toLocaleString("ko-KR")} / ` +
-      `${Number(total).toLocaleString("ko-KR")}`;
+  if (Number.isFinite(Number(checked)) && Number.isFinite(Number(total)) && Number(total) > 0) {
+    textEl.textContent = `${Number(checked).toLocaleString("ko-KR")} / ${Number(total).toLocaleString("ko-KR")}`;
   }
 }
 
-
-
-function showProgress(
-  type,
-  total = 0
-) {
-  if (type === "comment") {
-    commentProgress.classList.remove("hidden");
-
-    commentElapsed.textContent =
-      "00분 00초";
-
-    updateProgressUI(
-      0,
-      0,
-      total,
-      "comment"
-    );
-  } else {
-    postProgress.classList.remove("hidden");
-
-    postElapsed.textContent =
-      "00분 00초";
-
-    updateProgressUI(
-      0,
-      0,
-      total,
-      "post"
-    );
-  }
+function showProgress(type, total) {
+  const box = type === "comment" ? commentProgress : postProgress;
+  const elapsedEl = type === "comment" ? commentElapsed : postElapsed;
+  box.classList.remove("hidden");
+  elapsedEl.textContent = "00분 00초";
+  updateProgressUI(0, 0, total, type);
 }
-
 
 function hideProgress(type) {
-  if (type === "comment") {
-    commentProgress.classList.add("hidden");
-  } else {
-    postProgress.classList.add("hidden");
-  }
+  (type === "comment" ? commentProgress : postProgress).classList.add("hidden");
 }
 
-
-function setPostLoading(
-  loading,
-  total = 0
-) {
-  checkButton.disabled = loading;
-  commentButton.disabled = loading;
-  quickButton.disabled = loading;
-
-  if (loading) {
-    showProgress("post", total);
-    startElapsedTimer("post");
-  } else {
-    hideProgress("post");
-  }
+function setButtonsDisabled(disabled) {
+  checkButton.disabled = disabled;
+  commentButton.disabled = disabled;
+  quickButton.disabled = disabled;
 }
-
 
 function showError(message) {
   errorBox.textContent = message;
   errorBox.classList.remove("hidden");
 }
 
-
 function clearError() {
-  errorBox.classList.add("hidden");
   errorBox.textContent = "";
+  errorBox.classList.add("hidden");
 }
 
-
-async function fetchStreamingJson(
-  url,
-  body,
-  onProgress
-) {
+async function fetchStreamingJson(url, body, onProgress) {
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
 
   if (!response.ok) {
-    const data =
-      await response.json().catch(
-        () => ({})
-      );
-
-    throw new Error(
-      data.error ||
-      "검사에 실패했습니다."
-    );
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "검사에 실패했습니다.");
   }
 
-  if (!response.body) {
-    throw new Error(
-      "이 브라우저에서는 실시간 진행률을 표시할 수 없습니다."
-    );
-  }
+  if (!response.body) throw new Error("실시간 진행률을 표시할 수 없습니다.");
 
-  const reader =
-    response.body.getReader();
-
-  const decoder =
-    new TextDecoder();
-
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
   let buffer = "";
   let finalData = null;
 
+  const handleLine = (line) => {
+    if (!line.trim()) return;
+    let data;
+    try { data = JSON.parse(line); } catch { return; }
+    if (data.type === "progress") onProgress?.(data);
+    if (data.type === "error") throw new Error(data.error || "검사에 실패했습니다.");
+    if (data.type === "result") finalData = data.data;
+  };
+
   while (true) {
-    const {
-      value,
-      done
-    } = await reader.read();
-
+    const { value, done } = await reader.read();
     if (done) break;
-
-    buffer += decoder.decode(
-      value,
-      { stream: true }
-    );
-
-    const lines =
-      buffer.split("\n");
-
-    buffer =
-      lines.pop() || "";
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-
-      let data;
-
-      try {
-        data = JSON.parse(line);
-      } catch {
-        continue;
-      }
-
-      if (data.type === "progress") {
-        onProgress(data);
-      } else if (data.type === "result") {
-        finalData = data.data;
-      } else if (data.type === "error") {
-        throw new Error(
-          data.error ||
-          "검사에 실패했습니다."
-        );
-      }
-    }
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) handleLine(line);
   }
 
-  if (buffer.trim()) {
-    try {
-      const data =
-        JSON.parse(buffer);
+  buffer += decoder.decode();
+  if (buffer.trim()) handleLine(buffer);
 
-      if (data.type === "progress") {
-        onProgress(data);
-      }
-
-      if (data.type === "result") {
-        finalData = data.data;
-      }
-
-      if (data.type === "error") {
-        throw new Error(
-          data.error ||
-          "검사에 실패했습니다."
-        );
-      }
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message !== buffer
-      ) {
-        throw error;
-      }
-    }
-  }
-
-  if (!finalData) {
-    throw new Error(
-      "검사 결과를 받지 못했습니다."
-    );
-  }
-
+  if (!finalData) throw new Error("검사 결과를 받지 못했습니다. 검사가 중단되었을 수 있습니다.");
   return finalData;
 }
 
-
 function getSelectedGalleryName() {
-  return (
-    selectedGalleryData?.name ||
-    selectedGalleryData?.id ||
-    ""
-  );
+  return selectedGalleryData?.name || selectedGalleryData?.id || "";
 }
 
+function getStoredSessions() {
+  try {
+    const data = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || "{}");
+    return data && typeof data === "object" ? data : {};
+  } catch {
+    return {};
+  }
+}
 
-function renderResults(data) {
-  postResultGallery.textContent =
-    data.galleryName ||
-    getSelectedGalleryName();
+function saveStoredSession(type, session) {
+  const sessions = getStoredSessions();
+  sessions[type] = session;
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessions));
+}
 
-  postResultUserId.textContent =
-    data.targetUserId ||
-    userIdInput.value.trim();
+function getStoredSession(type) {
+  return getStoredSessions()[type] || null;
+}
 
-  foundCount.textContent =
-    Number(
-      data.foundCount || 0
-    ).toLocaleString("ko-KR");
+function clearStoredSession(type) {
+  const sessions = getStoredSessions();
+  delete sessions[type];
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessions));
+}
 
-  checkedCount.textContent =
-    `검사 ${Number(
-      data.checkedCount || 0
-    ).toLocaleString("ko-KR")}개`;
+function sessionMatches(session, gallery, userId, range) {
+  return !!session &&
+    session.galleryId === gallery.id &&
+    session.targetUserId === userId &&
+    Number(session.range) === Number(range);
+}
 
-  postList.innerHTML = "";
+function blockRangeText(start, checked) {
+  const from = start + 1;
+  const to = start + checked;
+  return `${from.toLocaleString("ko-KR")} ~ ${to.toLocaleString("ko-KR")}`;
+}
 
-  if (!data.postNumbers?.length) {
-    const empty =
-      document.createElement("div");
+function makeBlockBox(type, data, status = "complete") {
+  const box = document.createElement("div");
+  box.className = `block-result ${status === "interrupted" ? "block-interrupted" : ""}`;
 
-    empty.className = "empty";
+  const head = document.createElement("div");
+  head.className = "block-result-head";
 
-    empty.textContent =
-      "해당 범위에서 작성한 게시글이 없습니다.";
+  const title = document.createElement("strong");
+  title.textContent = `${type === "post" ? "게시글" : "댓글"} ${Number(data.blockIndex) + 1}블록`;
 
-    postList.appendChild(empty);
+  const range = document.createElement("span");
+  range.textContent = data.checkedCount > 0
+    ? blockRangeText(Number(data.blockStart || 0), Number(data.checkedCount || 0))
+    : `${Number(data.blockStart || 0) + 1}번째부터`;
+
+  head.append(title, range);
+  box.appendChild(head);
+
+  const meta = document.createElement("div");
+  meta.className = "block-result-meta";
+  meta.textContent = `검사 ${Number(data.checkedCount || 0).toLocaleString("ko-KR")}개 · 발견 ${Number(data.foundCount || 0).toLocaleString("ko-KR")}개`;
+  box.appendChild(meta);
+
+  const list = document.createElement("div");
+  list.className = "block-post-list";
+
+  if (Array.isArray(data.postNumbers) && data.postNumbers.length) {
+    for (const postNo of data.postNumbers) {
+      const a = document.createElement("a");
+      a.className = "post-link";
+      a.href = viewUrlByType(selectedGalleryData.id, selectedGalleryData.type, postNo);
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = postNo;
+      list.appendChild(a);
+    }
   } else {
-    data.postNumbers.forEach(
-      (postNo) => {
-        const a =
-          document.createElement("a");
-
-        a.className = "post-link";
-
-        a.href =
-          viewUrlByType(
-            selectedGalleryData.id,
-            selectedGalleryData.type,
-            postNo
-          );
-
-        a.target = "_blank";
-
-        a.rel =
-          "noopener noreferrer";
-
-        a.textContent = postNo;
-
-        postList.appendChild(a);
-      }
-    );
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "이 블록에서는 활동이 없습니다.";
+    list.appendChild(empty);
   }
 
+  box.appendChild(list);
+  return box;
+}
+
+function renderPostSession(session, interrupted = false) {
+  postResultGallery.textContent = getSelectedGalleryName();
+  postResultUserId.textContent = session.targetUserId;
+  postList.innerHTML = "";
+  for (const block of session.blocks || []) postList.appendChild(makeBlockBox("post", block));
+  foundCount.textContent = (session.blocks || []).reduce((sum, b) => sum + Number(b.foundCount || 0), 0).toLocaleString("ko-KR");
+  const postCheckedTotal = (session.blocks || []).reduce((sum, b) => sum + Number(b.checkedCount || 0), 0);
+  checkedCount.textContent = `완료 ${postCheckedTotal.toLocaleString("ko-KR")} / ${Number(session.range).toLocaleString("ko-KR")}`;
+  postElapsedResult.textContent = session.elapsed ? `소요 ${formatElapsed(session.elapsed)}` : "";
+
+  const oldResume = document.getElementById("postResumeButton");
+  oldResume?.remove();
+  const oldStatus = document.getElementById("postResumeStatus");
+  oldStatus?.remove();
+
+  if (!session.completed) {
+    const status = document.createElement("div");
+    status.id = "postResumeStatus";
+    status.className = "resume-status";
+    status.textContent = interrupted ? "검사가 중단되었습니다. 완료된 블록은 저장되어 있습니다." : "검사가 아직 완료되지 않았습니다.";
+    result.appendChild(status);
+
+    const button = document.createElement("button");
+    button.id = "postResumeButton";
+    button.className = "resume-button";
+    button.type = "button";
+    button.textContent = "이어서 검사";
+    button.addEventListener("click", () => runPostInspection(true));
+    result.appendChild(button);
+  }
   result.classList.remove("hidden");
 }
 
-
-function renderCommentResults(data) {
-  commentResultGallery.textContent =
-    data.galleryName ||
-    getSelectedGalleryName();
-
-  commentResultUserId.textContent =
-    data.targetUserId ||
-    userIdInput.value.trim();
-
-  commentFoundCount.textContent =
-    Number(
-      data.foundCount || 0
-    ).toLocaleString("ko-KR");
-
-  commentCheckedCount.textContent =
-    `검사 ${Number(
-      data.checkedCount || 0
-    ).toLocaleString("ko-KR")}개`;
-
+function renderCommentSession(session, interrupted = false) {
+  commentResultGallery.textContent = getSelectedGalleryName();
+  commentResultUserId.textContent = session.targetUserId;
   commentList.innerHTML = "";
+  for (const block of session.blocks || []) commentList.appendChild(makeBlockBox("comment", block));
+  commentFoundCount.textContent = (session.blocks || []).reduce((sum, b) => sum + Number(b.foundCount || 0), 0).toLocaleString("ko-KR");
+  const commentCheckedTotal = (session.blocks || []).reduce((sum, b) => sum + Number(b.checkedCount || 0), 0);
+  commentCheckedCount.textContent = `완료 ${commentCheckedTotal.toLocaleString("ko-KR")} / ${Number(session.range).toLocaleString("ko-KR")}`;
+  commentElapsedResult.textContent = session.elapsed ? `소요 ${formatElapsed(session.elapsed)}` : "";
 
-  if (!data.postNumbers?.length) {
-    const empty =
-      document.createElement("div");
+  const oldResume = document.getElementById("commentResumeButton");
+  oldResume?.remove();
+  const oldStatus = document.getElementById("commentResumeStatus");
+  oldStatus?.remove();
 
-    empty.className = "empty";
+  if (!session.completed) {
+    const status = document.createElement("div");
+    status.id = "commentResumeStatus";
+    status.className = "resume-status";
+    status.textContent = interrupted ? "검사가 중단되었습니다. 완료된 블록은 저장되어 있습니다." : "검사가 아직 완료되지 않았습니다.";
+    commentResult.appendChild(status);
 
-    empty.textContent =
-      "해당 범위에서 작성한 댓글이 없습니다.";
-
-    commentList.appendChild(empty);
-  } else {
-    data.postNumbers.forEach(
-      (postNo) => {
-        const a =
-          document.createElement("a");
-
-        a.className = "post-link";
-
-        a.href =
-          viewUrlByType(
-            selectedGalleryData.id,
-            selectedGalleryData.type,
-            postNo
-          );
-
-        a.target = "_blank";
-
-        a.rel =
-          "noopener noreferrer";
-
-        a.textContent = postNo;
-
-        commentList.appendChild(a);
-      }
-    );
+    const button = document.createElement("button");
+    button.id = "commentResumeButton";
+    button.className = "resume-button";
+    button.type = "button";
+    button.textContent = "이어서 검사";
+    button.addEventListener("click", () => runCommentInspection(true));
+    commentResult.appendChild(button);
   }
-
   commentResult.classList.remove("hidden");
 }
 
+function renderQuickBlock(entry) {
+  const box = makeBlockBox(entry.type, entry.data);
+  box.classList.add("quick-block");
+  return box;
+}
 
-function renderQuickResult(
-  data,
-  elapsed
-) {
-  quickResultGallery.textContent =
-    data.galleryName ||
-    getSelectedGalleryName();
+function renderQuickSession(session, interrupted = false) {
+  quickResultGallery.textContent = getSelectedGalleryName();
+  quickResultUserId.textContent = session.targetUserId;
+  quickResultMessage.innerHTML = "";
 
-  quickResultUserId.textContent =
-    data.targetUserId ||
-    userIdInput.value.trim();
-
-  quickElapsedResult.textContent =
-    `소요 ${formatElapsed(elapsed)}`;
-
-  if (!data.found) {
-    quickResultTitle.textContent =
-      "활동을 찾지 못했습니다.";
-
-    quickResultMessage.textContent =
-      `최근 ${Number(
-        rangeSelect.value
-      ).toLocaleString("ko-KR")}개 범위에서 게시글과 댓글 활동이 확인되지 않았습니다.`;
-
-    quickResult.classList.remove("hidden");
-
-    return;
+  for (const entry of session.blocks || []) {
+    quickResultMessage.appendChild(renderQuickBlock(entry));
   }
 
-  if (data.kind === "post") {
-    quickResultTitle.textContent =
-      "게시글 활동을 찾았습니다.";
+  const oldResume = document.getElementById("quickResumeButton");
+  oldResume?.remove();
+  const oldStatus = document.getElementById("quickResumeStatus");
+  oldStatus?.remove();
 
-    quickResultMessage.innerHTML =
-      `게시글 번호: <a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.postNo}</a>`;
+  if (session.found) {
+    quickResultTitle.textContent = session.found.kind === "post" ? "게시글 활동을 찾았습니다." : "댓글 활동을 찾았습니다.";
+    const info = document.createElement("div");
+    info.className = "quick-found-message";
+    const a = document.createElement("a");
+    a.href = session.found.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = session.found.postNo;
+    info.append(document.createTextNode(session.found.kind === "post" ? "발견된 게시글 번호: " : "댓글이 작성된 게시글 번호: "), a);
+    quickResultMessage.appendChild(info);
+  } else if (session.completed) {
+    quickResultTitle.textContent = "활동을 찾지 못했습니다.";
+    const info = document.createElement("div");
+    info.className = "quick-found-message";
+    info.textContent = `최근 ${Number(session.range).toLocaleString("ko-KR")}개 범위에서 게시글과 댓글 활동이 확인되지 않았습니다.`;
+    quickResultMessage.appendChild(info);
   } else {
-    quickResultTitle.textContent =
-      "댓글 활동을 찾았습니다.";
+    quickResultTitle.textContent = "검사가 중단되었습니다.";
+    const status = document.createElement("div");
+    status.id = "quickResumeStatus";
+    status.className = "resume-status";
+    status.textContent = interrupted ? "완료된 블록은 저장되어 있습니다." : "검사가 아직 완료되지 않았습니다.";
+    quickResultMessage.appendChild(status);
 
-    quickResultMessage.innerHTML =
-      `댓글이 작성된 게시글 번호: <a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.postNo}</a>`;
+    const button = document.createElement("button");
+    button.id = "quickResumeButton";
+    button.className = "resume-button";
+    button.type = "button";
+    button.textContent = "이어서 검사";
+    button.addEventListener("click", () => runQuickInspection(true));
+    quickResultMessage.appendChild(button);
   }
 
+  quickElapsedResult.textContent = session.elapsed ? `소요 ${formatElapsed(session.elapsed)}` : "";
   quickResult.classList.remove("hidden");
 }
 
+function createPostSession() {
+  return {
+    galleryId: selectedGalleryData.id,
+    galleryType: selectedGalleryData.type,
+    targetUserId: userIdInput.value.trim(),
+    range: Number(rangeSelect.value),
+    blocks: [],
+    nextBlock: 0,
+    completedBlocks: 0,
+    completed: false,
+    elapsed: 0
+  };
+}
 
-checkButton.addEventListener(
-  "click",
-  async () => {
-    clearError();
+function createCommentSession() {
+  return {
+    galleryId: selectedGalleryData.id,
+    galleryType: selectedGalleryData.type,
+    targetUserId: userIdInput.value.trim(),
+    range: Number(rangeSelect.value),
+    blocks: [],
+    nextBlock: 0,
+    completedBlocks: 0,
+    completed: false,
+    elapsed: 0
+  };
+}
 
-    const userId =
-      userIdInput.value.trim();
+function createQuickSession() {
+  return {
+    galleryId: selectedGalleryData.id,
+    galleryType: selectedGalleryData.type,
+    targetUserId: userIdInput.value.trim(),
+    range: Number(rangeSelect.value),
+    blocks: [],
+    postIndex: 0,
+    commentIndex: 0,
+    nextType: "post",
+    postExhausted: false,
+    commentExhausted: false,
+    found: null,
+    completed: false,
+    elapsed: 0
+  };
+}
 
-    const postCount =
-      Number(rangeSelect.value);
-
-    if (!selectedGalleryData) {
-      showError(
-        "먼저 갤러리를 검색해서 선택해 주세요."
-      );
-
-      galleryInput.focus();
-
-      return;
-    }
-
-    if (!userId) {
-      showError(
-        "식별코드를 입력해 주세요."
-      );
-
-      userIdInput.focus();
-
-      return;
-    }
-
-    setPostLoading(
-      true,
-      postCount
-    );
-
-    let data = null;
-
-    try {
-      data =
-        await fetchStreamingJson(
-          "/api/check-posts",
-          {
-            galleryId:
-              selectedGalleryData.id,
-
-            galleryType:
-              selectedGalleryData.type,
-
-            targetUserId:
-              userId,
-
-            postCount
-          },
-          (progressData) => {
-            updateProgressUI(
-              progressData.percent,
-              progressData.checked ?? progressData.checkedCount,
-              progressData.total ?? progressData.totalCount,
-              "post"
-            );
-          }
-        );
-
-      renderResults(data);
-    } catch (error) {
-      showError(
-        error.message ||
-        "게시글 검사에 실패했습니다."
-      );
-    } finally {
-      const elapsed =
-        stopElapsedTimer("post");
-
-      postElapsedResult.textContent =
-        `소요 ${formatElapsed(elapsed)}`;
-
-      if (data) {
-        updateProgressUI(
-          100,
-          data.checkedCount ?? postCount,
-          data.requestedCount ?? postCount,
-          "post"
-        );
-      }
-
-      setPostLoading(false);
-    }
+function validateInputs() {
+  const userId = userIdInput.value.trim();
+  if (!selectedGalleryData) {
+    showError("먼저 갤러리를 검색해서 선택해 주세요.");
+    galleryInput.focus();
+    return false;
   }
-);
-
-
-commentButton.addEventListener(
-  "click",
-  async () => {
-    clearError();
-
-    const userId =
-      userIdInput.value.trim();
-
-    const postCount =
-      Number(rangeSelect.value);
-
-    if (!selectedGalleryData) {
-      showError(
-        "먼저 갤러리를 검색해서 선택해 주세요."
-      );
-
-      galleryInput.focus();
-
-      return;
-    }
-
-    if (!userId) {
-      showError(
-        "식별코드를 입력해 주세요."
-      );
-
-      userIdInput.focus();
-
-      return;
-    }
-
-    checkButton.disabled = true;
-    commentButton.disabled = true;
-    quickButton.disabled = true;
-
-    commentButton.textContent =
-      "댓글 검사 중...";
-
-    commentProgress.classList.remove(
-      "hidden"
-    );
-
-    updateProgressUI(
-      0,
-      0,
-      postCount,
-      "comment"
-    );
-
-    startElapsedTimer("comment");
-
-
-    let data = null;
-
-    try {
-      const data =
-        await fetchStreamingJson(
-          "/api/check-comments",
-          {
-            galleryId:
-              selectedGalleryData.id,
-
-            galleryType:
-              selectedGalleryData.type,
-
-            targetUserId:
-              userId,
-
-            postCount
-          },
-          (progressData) => {
-            updateProgressUI(
-              progressData.percent,
-              progressData.checked ?? progressData.checkedCount,
-              progressData.total ?? progressData.totalCount,
-              "comment"
-            );
-          }
-        );
-
-      renderCommentResults(data);
-    } catch (error) {
-      showError(
-        error.message ||
-        "댓글 검사에 실패했습니다."
-      );
-    } finally {
-        const elapsed =
-          stopElapsedTimer("comment");
-
-        commentElapsedResult.textContent =
-          `소요 ${formatElapsed(elapsed)}`;
-
-        if (data) {
-          const checked =
-            data.checkedCount ?? 0;
-
-          const total =
-            data.requestedCount ??
-            postCount;
-
-          updateProgressUI(
-            100,
-            checked,
-            total,
-            "comment"
-          );
-        }
-
-        commentProgress.classList.add(
-          "hidden"
-        );
-
-        checkButton.disabled = false;
-        commentButton.disabled = false;
-        quickButton.disabled = false;
-
-        commentButton.textContent =
-          "댓글 검사";
-      }
+  if (!userId) {
+    showError("식별코드를 입력해 주세요.");
+    userIdInput.focus();
+    return false;
   }
-);
+  return true;
+}
 
+async function runPostInspection(resume = false) {
+  if (!validateInputs()) return;
+  clearError();
 
-quickButton.addEventListener(
-  "click",
-  async () => {
-    clearError();
+  const range = Number(rangeSelect.value);
+  let session = resume ? getStoredSession("post") : null;
+  if (!sessionMatches(session, selectedGalleryData, userIdInput.value.trim(), range)) session = null;
+  if (!session) session = createPostSession();
 
-    const userId =
-      userIdInput.value.trim();
+  setButtonsDisabled(true);
+  checkButton.textContent = "게시글 검사 중...";
+  showProgress("post", POST_BLOCK_SIZE);
+  startElapsedTimer("post");
 
-    const postCount =
-      Number(rangeSelect.value);
+  try {
+    const totalBlocks = Math.ceil(range / POST_BLOCK_SIZE);
+    while (session.nextBlock < totalBlocks) {
+      const blockIndex = session.nextBlock;
+      const blockStart = blockIndex * POST_BLOCK_SIZE;
+      const blockCount = Math.min(POST_BLOCK_SIZE, range - blockStart);
+      postProgressText.textContent = `게시글 ${blockIndex + 1}블록 · ${blockStart + 1} ~ ${blockStart + blockCount}`;
 
-    if (!selectedGalleryData) {
-      showError(
-        "먼저 갤러리를 검색해서 선택해 주세요."
-      );
+      const data = await fetchStreamingJson("/api/check-posts", {
+        galleryId: session.galleryId,
+        galleryType: session.galleryType,
+        targetUserId: session.targetUserId,
+        blockIndex,
+        blockStart,
+        blockCount
+      }, (progress) => {
+        updateProgressUI(progress.percent, progress.checked, progress.total, "post");
+      });
 
-      galleryInput.focus();
+      session.blocks.push(data);
+      session.completedBlocks++;
+      session.nextBlock++;
+      saveStoredSession("post", session);
+      renderPostSession(session);
 
-      return;
+      if (data.reachedEnd || !data.hasMore) {
+        session.completed = true;
+        saveStoredSession("post", session);
+        renderPostSession(session);
+        break;
+      }
     }
 
-    if (!userId) {
-      showError(
-        "식별코드를 입력해 주세요."
-      );
+    if (session.nextBlock >= totalBlocks) {
+      session.completed = true;
+      saveStoredSession("post", session);
+      renderPostSession(session);
+    }
+  } catch (error) {
+    session.elapsed = stopElapsedTimer("post");
+    saveStoredSession("post", session);
+    renderPostSession(session, true);
+    showError(error.message || "게시글 검사가 중단되었습니다.");
+    hideProgress("post");
+    setButtonsDisabled(false);
+    checkButton.textContent = "게시글 검사";
+    return;
+  }
 
-      userIdInput.focus();
+  session.elapsed = stopElapsedTimer("post");
+  session.completed = true;
+  saveStoredSession("post", session);
+  renderPostSession(session);
+  hideProgress("post");
+  setButtonsDisabled(false);
+  checkButton.textContent = "게시글 검사";
+}
 
-      return;
+async function runCommentInspection(resume = false) {
+  if (!validateInputs()) return;
+  clearError();
+
+  const range = Number(rangeSelect.value);
+  let session = resume ? getStoredSession("comment") : null;
+  if (!sessionMatches(session, selectedGalleryData, userIdInput.value.trim(), range)) session = null;
+  if (!session) session = createCommentSession();
+
+  setButtonsDisabled(true);
+  commentButton.textContent = "댓글 검사 중...";
+  showProgress("comment", COMMENT_BLOCK_SIZE);
+  startElapsedTimer("comment");
+
+  try {
+    const totalBlocks = Math.ceil(range / COMMENT_BLOCK_SIZE);
+    while (session.nextBlock < totalBlocks) {
+      const blockIndex = session.nextBlock;
+      const blockStart = blockIndex * COMMENT_BLOCK_SIZE;
+      const blockCount = Math.min(COMMENT_BLOCK_SIZE, range - blockStart);
+      commentProgressText.textContent = `댓글 ${blockIndex + 1}블록 · ${blockStart + 1} ~ ${blockStart + blockCount}`;
+
+      const data = await fetchStreamingJson("/api/check-comments", {
+        galleryId: session.galleryId,
+        galleryType: session.galleryType,
+        targetUserId: session.targetUserId,
+        blockIndex,
+        blockStart,
+        blockCount
+      }, (progress) => {
+        updateProgressUI(progress.percent, progress.checked, progress.total, "comment");
+      });
+
+      session.blocks.push(data);
+      session.completedBlocks++;
+      session.nextBlock++;
+      saveStoredSession("comment", session);
+      renderCommentSession(session);
+
+      if (data.reachedEnd || !data.hasMore) {
+        session.completed = true;
+        saveStoredSession("comment", session);
+        renderCommentSession(session);
+        break;
+      }
     }
 
-    quickButton.disabled = true;
-    checkButton.disabled = true;
-    commentButton.disabled = true;
+    if (session.nextBlock >= totalBlocks) {
+      session.completed = true;
+      saveStoredSession("comment", session);
+      renderCommentSession(session);
+    }
+  } catch (error) {
+    session.elapsed = stopElapsedTimer("comment");
+    saveStoredSession("comment", session);
+    renderCommentSession(session, true);
+    showError(error.message || "댓글 검사가 중단되었습니다.");
+    hideProgress("comment");
+    setButtonsDisabled(false);
+    commentButton.textContent = "댓글 검사";
+    return;
+  }
 
-    quickResult.classList.add(
-      "hidden"
-    );
+  session.elapsed = stopElapsedTimer("comment");
+  session.completed = true;
+  saveStoredSession("comment", session);
+  renderCommentSession(session);
+  hideProgress("comment");
+  setButtonsDisabled(false);
+  commentButton.textContent = "댓글 검사";
+}
 
-    quickProgress.classList.remove(
-      "hidden"
-    );
+async function runQuickInspection(resume = false) {
+  if (!validateInputs()) return;
+  clearError();
 
-    quickProgressText.textContent =
-      "게시글 활동부터 확인하고 있습니다.";
+  const range = Number(rangeSelect.value);
+  let session = resume ? getStoredSession("quick") : null;
+  if (!sessionMatches(session, selectedGalleryData, userIdInput.value.trim(), range)) session = null;
+  if (!session) session = createQuickSession();
 
-    startElapsedTimer("quick");
+  setButtonsDisabled(true);
+  quickButton.textContent = "간편 검사 중...";
+  quickProgress.classList.remove("hidden");
+  quickResult.classList.remove("hidden");
+  startElapsedTimer("quick");
+  renderQuickSession(session);
 
-    try {
-      const response =
-        await fetch(
-          "/api/quick-check",
-          {
-            method: "POST",
+  try {
+    const postTotal = Math.ceil(range / POST_BLOCK_SIZE);
+    const commentTotal = Math.ceil(range / COMMENT_BLOCK_SIZE);
 
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
+    while (true) {
+      let type = session.nextType;
+      if (type === "post" && (session.postIndex >= postTotal || session.postExhausted)) type = "comment";
+      if (type === "comment" && (session.commentIndex >= commentTotal || session.commentExhausted)) type = "post";
 
-            body: JSON.stringify({
-              galleryId:
-                selectedGalleryData.id,
+      const noWork =
+        (session.postIndex >= postTotal || session.postExhausted) &&
+        (session.commentIndex >= commentTotal || session.commentExhausted);
 
-              galleryType:
-                selectedGalleryData.type,
-
-              targetUserId:
-                userId,
-
-              postCount
-            })
-          }
-        );
-
-      data =
-        await response
-          .json()
-          .catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ||
-          "간편검색에 실패했습니다."
-        );
+      if (noWork) {
+        session.completed = true;
+        break;
       }
 
-      if (!data.success) {
-        throw new Error(
-          data.error ||
-          "간편검색에 실패했습니다."
-        );
+      const blockIndex = type === "post" ? session.postIndex : session.commentIndex;
+      const blockSize = type === "post" ? POST_BLOCK_SIZE : COMMENT_BLOCK_SIZE;
+      const blockStart = blockIndex * blockSize;
+      const blockCount = Math.min(blockSize, range - blockStart);
+
+      quickProgressText.textContent = `${type === "post" ? "게시글" : "댓글"} ${blockIndex + 1}블록 검사 중...`;
+
+      const response = await fetch("/api/quick-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          galleryId: session.galleryId,
+          galleryType: session.galleryType,
+          targetUserId: session.targetUserId,
+          mode: type,
+          blockIndex,
+          blockStart,
+          blockCount
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || "간편 검사가 중단되었습니다.");
+
+      session.blocks.push({ type, data });
+
+      if (data.found) {
+        session.found = data;
+        session.completed = true;
+        saveStoredSession("quick", session);
+        renderQuickSession(session);
+        break;
       }
 
-      const elapsed =
-        stopElapsedTimer("quick");
-
-      if (
-        data.found &&
-        data.kind === "comment"
-      ) {
-        quickProgressText.textContent =
-          "게시글이 없어 댓글 활동을 확인했습니다.";
-      } else if (
-        data.found &&
-        data.kind === "post"
-      ) {
-        quickProgressText.textContent =
-          "게시글 활동을 찾았습니다.";
+      if (type === "post") {
+        session.postIndex++;
+        if (data.reachedEnd) session.postExhausted = true;
+        session.nextType = "comment";
       } else {
-        quickProgressText.textContent =
-          "게시글과 댓글 활동을 확인했습니다.";
+        session.commentIndex++;
+        if (data.reachedEnd) session.commentExhausted = true;
+        session.nextType = "post";
       }
 
-      renderQuickResult(
-        data,
-        elapsed
-      );
-    } catch (error) {
-      stopElapsedTimer("quick");
-
-      showError(
-        error.message ||
-        "간편검색에 실패했습니다."
-      );
-    } finally {
-      quickProgress.classList.add(
-        "hidden"
-      );
-
-      quickButton.disabled = false;
-      checkButton.disabled = false;
-      commentButton.disabled = false;
+      saveStoredSession("quick", session);
+      renderQuickSession(session);
     }
+  } catch (error) {
+    session.elapsed = stopElapsedTimer("quick");
+    saveStoredSession("quick", session);
+    renderQuickSession(session, true);
+    showError(error.message || "간편 검사가 중단되었습니다.");
+    quickProgress.classList.add("hidden");
+    setButtonsDisabled(false);
+    quickButton.textContent = "간편 검사";
+    return;
   }
-);
+
+  session.elapsed = stopElapsedTimer("quick");
+  saveStoredSession("quick", session);
+  renderQuickSession(session);
+  quickProgress.classList.add("hidden");
+  setButtonsDisabled(false);
+  quickButton.textContent = "간편 검사";
+}
+
+checkButton.addEventListener("click", () => runPostInspection(false));
+commentButton.addEventListener("click", () => runCommentInspection(false));
+quickButton.addEventListener("click", () => runQuickInspection(false));
+
+function restoreSavedResults() {
+  if (!selectedGalleryData) return;
+  const userId = userIdInput.value.trim();
+  const range = Number(rangeSelect.value);
+  if (!userId) return;
+
+  const postSession = getStoredSession("post");
+  if (sessionMatches(postSession, selectedGalleryData, userId, range)) renderPostSession(postSession, !postSession.completed);
+
+  const commentSession = getStoredSession("comment");
+  if (sessionMatches(commentSession, selectedGalleryData, userId, range)) renderCommentSession(commentSession, !commentSession.completed);
+
+  const quickSession = getStoredSession("quick");
+  if (sessionMatches(quickSession, selectedGalleryData, userId, range)) renderQuickSession(quickSession, !quickSession.completed);
+}
+
+const originalSelectGallery = selectGallery;
+selectGallery = function(item) {
+  originalSelectGallery(item);
+  setTimeout(restoreSavedResults, 0);
+};
+
+userIdInput.addEventListener("change", restoreSavedResults);
+rangeSelect.addEventListener("change", restoreSavedResults);

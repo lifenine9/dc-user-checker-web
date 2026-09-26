@@ -2,28 +2,34 @@ const dc = require("./dcinside");
 
 function send(res, payload) {
   if (res.writableEnded) return;
-
   res.write(JSON.stringify(payload) + "\n");
+  if (typeof res.flush === "function") res.flush();
+}
 
-  if (typeof res.flush === "function") {
-    res.flush();
-  }
+function setupStream(res) {
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.setHeader("Transfer-Encoding", "chunked");
+  if (typeof res.flushHeaders === "function") res.flushHeaders();
 }
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return res.status(405).json({
-      success: false,
-      error: "POST only"
-    });
+    return res.status(405).json({ success: false, error: "POST only" });
   }
 
+  let streamed = false;
+
   try {
-    const {
-      galleryId,
-      targetUserId,
-      postCount
-    } = req.body || {};
+    const body = req.body || {};
+    const galleryId = String(body.galleryId || "").trim();
+    const targetUserId = String(body.targetUserId || "").trim();
+    const blockCount = Number(body.blockCount ?? body.postCount);
+    const blockStart = Number(body.blockStart ?? 0);
+    const blockIndex = Number(body.blockIndex ?? 0);
 
     if (!galleryId || !targetUserId) {
       return res.status(400).json({
@@ -32,68 +38,45 @@ module.exports = async (req, res) => {
       });
     }
 
-    const count = Number(postCount);
-
-    if (
-      !Number.isInteger(count) ||
-      count < 1 ||
-      count > 50000
-    ) {
+    if (!Number.isInteger(blockCount) || blockCount < 1 || blockCount > 1000) {
       return res.status(400).json({
         success: false,
-        error: "postCount가 올바르지 않습니다."
+        error: "댓글 블록 크기가 올바르지 않습니다."
       });
     }
 
-    const targetId = String(targetUserId).trim();
-
-    res.statusCode = 200;
-    res.setHeader(
-      "Content-Type",
-      "application/x-ndjson; charset=utf-8"
-    );
-    res.setHeader(
-      "Cache-Control",
-      "no-cache, no-transform"
-    );
-    res.setHeader(
-      "Connection",
-      "keep-alive"
-    );
-    res.setHeader(
-      "X-Accel-Buffering",
-      "no"
-    );
-    res.setHeader(
-      "Transfer-Encoding",
-      "chunked"
-    );
-
-    if (typeof res.flushHeaders === "function") {
-      res.flushHeaders();
+    if (!Number.isInteger(blockStart) || blockStart < 0 || blockStart % 1000 !== 0) {
+      return res.status(400).json({
+        success: false,
+        error: "댓글 블록 위치가 올바르지 않습니다."
+      });
     }
 
-    const matchedPostNumbers = [];
-    const checkedPosts = new Set();
+    setupStream(res);
+    streamed = true;
 
     const postsPerPage = 50;
     const concurrency = 10;
-    const totalPages = Math.ceil(
-      count / postsPerPage
-    );
+    const firstPage = Math.floor(blockStart / postsPerPage) + 1;
+    const offsetInFirstPage = blockStart % postsPerPage;
+    const pagesNeeded = Math.ceil((offsetInFirstPage + blockCount) / postsPerPage);
+
+    const postNumbers = [];
+    let reachedEnd = false;
 
     send(res, {
       type: "progress",
+      blockIndex,
+      blockStart,
+      blockCount,
       checked: 0,
-      total: count,
-      percent: 0
+      total: blockCount,
+      percent: 0,
+      phase: "list"
     });
 
-    for (
-      let page = 1;
-      page <= totalPages;
-      page++
-    ) {
+    for (let pageOffset = 0; pageOffset < pagesNeeded; pageOffset++) {
+      const page = firstPage + pageOffset;
       const posts = await dc.getPostList({
         galleryId,
         page,
@@ -101,134 +84,90 @@ module.exports = async (req, res) => {
         delayMs: 1000
       });
 
-      if (
-        !Array.isArray(posts) ||
-        posts.length === 0
-      ) {
+      if (!Array.isArray(posts) || posts.length === 0) {
+        reachedEnd = true;
         break;
       }
 
-      const pagePosts = [];
+      const start = pageOffset === 0 ? offsetInFirstPage : 0;
+      const pagePosts = posts.slice(start, start + (blockCount - postNumbers.length));
 
-      for (const post of posts) {
-        if (checkedPosts.size >= count) {
-          break;
-        }
-
-        const postNo = String(
-          post?.id || ""
-        ).trim();
-
-        if (
-          !postNo ||
-          checkedPosts.has(postNo)
-        ) {
-          continue;
-        }
-
-        checkedPosts.add(postNo);
-        pagePosts.push(postNo);
+      for (const post of pagePosts) {
+        const postNo = String(post?.id || "").trim();
+        if (postNo) postNumbers.push(postNo);
       }
 
-      // 게시글 상세 조회를 10개씩 병렬 처리
-      for (
-        let i = 0;
-        i < pagePosts.length;
-        i += concurrency
-      ) {
-        const batch = pagePosts.slice(
-          i,
-          i + concurrency
-        );
-
-        const results = await Promise.all(
-          batch.map(async (postNo) => {
-            try {
-              const detail = await dc.getPost({
-                galleryId,
-                postNo,
-                extractImages: false
-              });
-
-              const comments =
-                detail?.comments?.items || [];
-
-              const found = comments.some(
-                (comment) => {
-                  const authorId = String(
-                    comment?.author?.userId || ""
-                  ).trim();
-
-                  return authorId === targetId;
-                }
-              );
-
-              return {
-                postNo,
-                found
-              };
-            } catch (error) {
-              console.error(
-                `comment check failed: ${postNo}`,
-                error?.message || error
-              );
-
-              return {
-                postNo,
-                found: false
-              };
-            }
-          })
-        );
-
-        for (const result of results) {
-          if (result.found) {
-            matchedPostNumbers.push(
-              result.postNo
-            );
-          }
-        }
-
-        const checked = checkedPosts.size;
-
-        const percent = Math.min(
-          100,
-          Math.floor(
-            (checked / count) * 100
-          )
-        );
-
-        send(res, {
-          type: "progress",
-          checked,
-          total: count,
-          percent
-        });
-      }
-
-      if (posts.length < postsPerPage) {
-        break;
-      }
-
-      if (checkedPosts.size >= count) {
+      if (posts.length < postsPerPage || postNumbers.length >= blockCount) {
+        if (posts.length < postsPerPage) reachedEnd = true;
         break;
       }
     }
 
-    const checkedCount =
-      checkedPosts.size;
+    if (postNumbers.length === 0 && reachedEnd) {
+      send(res, {
+        type: "result",
+        data: {
+          success: true,
+          galleryId,
+          targetUserId,
+          blockIndex,
+          blockStart,
+          blockEnd: blockStart,
+          requestedCount: blockCount,
+          checkedCount: 0,
+          foundCount: 0,
+          postNumbers: [],
+          complete: true,
+          hasMore: false,
+          reachedEnd: true
+        }
+      });
+      if (!res.writableEnded) res.end();
+      return;
+    }
 
-    send(res, {
-      type: "progress",
-      checked: checkedCount,
-      total: count,
-      percent:
-        checkedCount >= count
-          ? 100
-          : Math.floor(
-              (checkedCount / count) * 100
-            )
-    });
+    const matchedPostNumbers = [];
+    let checkedCount = 0;
+
+    for (let i = 0; i < postNumbers.length; i += concurrency) {
+      const batch = postNumbers.slice(i, i + concurrency);
+
+      const results = await Promise.all(
+        batch.map(async (postNo) => {
+          const detail = await dc.getPost({
+            galleryId,
+            postNo,
+            extractImages: false
+          });
+
+          const comments = detail?.comments?.items || [];
+          const found = comments.some(
+            (comment) => String(comment?.author?.userId || "").trim() === targetUserId
+          );
+
+          return { postNo, found };
+        })
+      );
+
+      for (const result of results) {
+        checkedCount++;
+        if (result.found) matchedPostNumbers.push(result.postNo);
+      }
+
+      send(res, {
+        type: "progress",
+        blockIndex,
+        blockStart,
+        blockCount,
+        checked: checkedCount,
+        total: postNumbers.length,
+        percent: Math.min(100, Math.floor((checkedCount / Math.max(postNumbers.length, 1)) * 100)),
+        phase: "comments"
+      });
+    }
+
+    const complete = checkedCount === postNumbers.length;
+    const hasMore = !reachedEnd && postNumbers.length >= blockCount;
 
     send(res, {
       type: "result",
@@ -236,44 +175,35 @@ module.exports = async (req, res) => {
         success: true,
         galleryId,
         targetUserId,
-        requestedCount: count,
+        blockIndex,
+        blockStart,
+        blockEnd: blockStart + postNumbers.length,
+        requestedCount: blockCount,
         checkedCount,
-        foundCount:
-          matchedPostNumbers.length,
-        postNumbers:
-          matchedPostNumbers
+        foundCount: matchedPostNumbers.length,
+        postNumbers: matchedPostNumbers,
+        complete,
+        hasMore,
+        reachedEnd
       }
     });
 
-    if (!res.writableEnded) {
-      res.end();
-    }
+    if (!res.writableEnded) res.end();
   } catch (error) {
-    console.error(
-      "check-comments error:",
-      error
-    );
+    console.error("check-comments error:", error);
 
-    if (res.headersSent) {
+    if (streamed && res.headersSent) {
       send(res, {
         type: "error",
-        error:
-          error?.message ||
-          "댓글 검사 중 오류가 발생했습니다."
+        error: error?.message || "댓글 검사 중 오류가 발생했습니다."
       });
-
-      if (!res.writableEnded) {
-        res.end();
-      }
-
+      if (!res.writableEnded) res.end();
       return;
     }
 
     return res.status(500).json({
       success: false,
-      error:
-        error?.message ||
-        "댓글 검사 중 오류가 발생했습니다."
+      error: error?.message || "댓글 검사 중 오류가 발생했습니다."
     });
   }
 };
