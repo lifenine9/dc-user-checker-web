@@ -1,4 +1,4 @@
-const dc = require("@gurumnyang/dcinside.js");
+const dc = require("./dcinside");
 
 function send(res, payload) {
   if (res.writableEnded) return;

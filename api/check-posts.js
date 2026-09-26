@@ -1,4 +1,4 @@
-const dc = require("@gurumnyang/dcinside.js");
+const dc = require("./dcinside");
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {

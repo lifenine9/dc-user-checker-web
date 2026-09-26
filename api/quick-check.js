@@ -1,4 +1,4 @@
-const dc = require("@gurumnyang/dcinside.js");
+const dc = require("./dcinside");
 
 function viewUrl(galleryId, galleryType, postNo) {
   const path =
