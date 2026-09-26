@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
   if (req.method !== "POST") {
     return res.status(405).json({
       success: false,
-      error: "POST only",
+      error: "POST only"
     });
   }
 
@@ -22,13 +22,13 @@ module.exports = async (req, res) => {
     const {
       galleryId,
       targetUserId,
-      postCount,
+      postCount
     } = req.body || {};
 
     if (!galleryId || !targetUserId) {
       return res.status(400).json({
         success: false,
-        error: "galleryId와 targetUserId가 필요합니다.",
+        error: "galleryId와 targetUserId가 필요합니다."
       });
     }
 
@@ -41,35 +41,29 @@ module.exports = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        error: "postCount가 올바르지 않습니다.",
+        error: "postCount가 올바르지 않습니다."
       });
     }
 
     const targetId = String(targetUserId).trim();
 
-    // NDJSON 스트리밍
     res.statusCode = 200;
-
     res.setHeader(
       "Content-Type",
       "application/x-ndjson; charset=utf-8"
     );
-
     res.setHeader(
       "Cache-Control",
       "no-cache, no-transform"
     );
-
     res.setHeader(
       "Connection",
       "keep-alive"
     );
-
     res.setHeader(
       "X-Accel-Buffering",
       "no"
     );
-
     res.setHeader(
       "Transfer-Encoding",
       "chunked"
@@ -83,16 +77,16 @@ module.exports = async (req, res) => {
     const checkedPosts = new Set();
 
     const postsPerPage = 50;
+    const concurrency = 10;
     const totalPages = Math.ceil(
       count / postsPerPage
     );
 
-    // 시작 상태
     send(res, {
       type: "progress",
       checked: 0,
       total: count,
-      percent: 0,
+      percent: 0
     });
 
     for (
@@ -104,7 +98,7 @@ module.exports = async (req, res) => {
         galleryId,
         page,
         boardType: "all",
-        delayMs: 1000,
+        delayMs: 1000
       });
 
       if (
@@ -113,6 +107,8 @@ module.exports = async (req, res) => {
       ) {
         break;
       }
+
+      const pagePosts = [];
 
       for (const post of posts) {
         if (checkedPosts.size >= count) {
@@ -123,62 +119,91 @@ module.exports = async (req, res) => {
           post?.id || ""
         ).trim();
 
-        if (!postNo || checkedPosts.has(postNo)) {
+        if (
+          !postNo ||
+          checkedPosts.has(postNo)
+        ) {
           continue;
         }
 
         checkedPosts.add(postNo);
+        pagePosts.push(postNo);
+      }
 
-        try {
-          const detail = await dc.getPost({
-            galleryId,
-            postNo,
-            extractImages: false,
-          });
+      // 게시글 상세 조회를 10개씩 병렬 처리
+      for (
+        let i = 0;
+        i < pagePosts.length;
+        i += concurrency
+      ) {
+        const batch = pagePosts.slice(
+          i,
+          i + concurrency
+        );
 
-          const comments =
-            detail?.comments?.items || [];
+        const results = await Promise.all(
+          batch.map(async (postNo) => {
+            try {
+              const detail = await dc.getPost({
+                galleryId,
+                postNo,
+                extractImages: false
+              });
 
-          const found = comments.some(
-            (comment) => {
-              const authorId = String(
-                comment?.author?.userId || ""
-              ).trim();
+              const comments =
+                detail?.comments?.items || [];
 
-              return authorId === targetId;
+              const found = comments.some(
+                (comment) => {
+                  const authorId = String(
+                    comment?.author?.userId || ""
+                  ).trim();
+
+                  return authorId === targetId;
+                }
+              );
+
+              return {
+                postNo,
+                found
+              };
+            } catch (error) {
+              console.error(
+                `comment check failed: ${postNo}`,
+                error?.message || error
+              );
+
+              return {
+                postNo,
+                found: false
+              };
             }
-          );
+          })
+        );
 
-          if (found) {
-            matchedPostNumbers.push(postNo);
+        for (const result of results) {
+          if (result.found) {
+            matchedPostNumbers.push(
+              result.postNo
+            );
           }
-        } catch (error) {
-          // 특정 게시글의 댓글을 가져오지 못해도
-          // 전체 검사는 계속 진행
         }
 
-        // 실제 검사한 게시글 기준 진행률
-        // 10개마다 전송 + 마지막은 항상 전송
-        if (
-          checkedPosts.size % 10 === 0 ||
-          checkedPosts.size === count
-        ) {
-          const checked = checkedPosts.size;
+        const checked = checkedPosts.size;
 
-          const percent = Math.min(
-            100,
-            Math.floor(
-              (checked / count) * 100
-            )
-          );
+        const percent = Math.min(
+          100,
+          Math.floor(
+            (checked / count) * 100
+          )
+        );
 
-          send(res, {
-            type: "progress",
-            checked,
-            total: count,
-            percent,
-          });
-        }
+        send(res, {
+          type: "progress",
+          checked,
+          total: count,
+          percent
+        });
       }
 
       if (posts.length < postsPerPage) {
@@ -190,9 +215,9 @@ module.exports = async (req, res) => {
       }
     }
 
-    const checkedCount = checkedPosts.size;
+    const checkedCount =
+      checkedPosts.size;
 
-    // 마지막 실제 검사 결과
     send(res, {
       type: "progress",
       checked: checkedCount,
@@ -202,7 +227,7 @@ module.exports = async (req, res) => {
           ? 100
           : Math.floor(
               (checkedCount / count) * 100
-            ),
+            )
     });
 
     send(res, {
@@ -213,9 +238,11 @@ module.exports = async (req, res) => {
         targetUserId,
         requestedCount: count,
         checkedCount,
-        foundCount: matchedPostNumbers.length,
-        postNumbers: matchedPostNumbers,
-      },
+        foundCount:
+          matchedPostNumbers.length,
+        postNumbers:
+          matchedPostNumbers
+      }
     });
 
     if (!res.writableEnded) {
@@ -232,7 +259,7 @@ module.exports = async (req, res) => {
         type: "error",
         error:
           error?.message ||
-          "댓글 검사 중 오류가 발생했습니다.",
+          "댓글 검사 중 오류가 발생했습니다."
       });
 
       if (!res.writableEnded) {
@@ -246,7 +273,7 @@ module.exports = async (req, res) => {
       success: false,
       error:
         error?.message ||
-        "댓글 검사 중 오류가 발생했습니다.",
+        "댓글 검사 중 오류가 발생했습니다."
     });
   }
 };
